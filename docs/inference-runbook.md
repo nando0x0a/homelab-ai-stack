@@ -64,7 +64,9 @@ The `/api/generate` and `/api/chat` endpoints (with `"stream": false`) return:
 | `eval_duration` | Time to generate output (ns) |
 | `total_duration` | End-to-end wall time (ns) |
 
-**Tokens/s formula:** `eval_count / eval_duration * 1e9`
+**Tokens/s formulas:**
+- Generation-only: `eval_count / eval_duration * 1e9`
+- Overall (incl. prompt processing): `(prompt_eval_count + eval_count) / (prompt_eval_duration + eval_duration) * 1e9`
 
 This is exactly what [`monitoring/ollama-inference-loop.sh`](../monitoring/ollama-inference-loop.sh) computes on every iteration.
 
@@ -148,7 +150,7 @@ python3 monitoring/lms-benchmark-loop.py
 ./monitoring/lms-stats-stream.sh
 ```
 
-Each writes a small JSON stats file (`model`, `tps`, `eval_count`) that both the dashboards and, potentially, other tooling can consume.
+Each writes a small JSON stats file (`model`, `tps`, `total_tps`, `input_tokens`, `output_tokens`, `total_tokens`) that both the dashboards and, potentially, other tooling can consume.
 
 ### 5.3 GPU — quick CLI
 

@@ -23,7 +23,7 @@ while true; do
     -d "{\"model\":\"${MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT}\"}],\"stream\":false}")
   END=$(date +%s%N)
   STATS=$(echo "$RESULT" | jq --argjson dur "$(( (END - START) / 1000000 ))" \
-    '{model:.model, eval_count:.usage.completion_tokens, tps: (.usage.completion_tokens / ($dur/1000))}')
+    '{model:.model, input_tokens:.usage.prompt_tokens, output_tokens:.usage.completion_tokens, total_tokens:.usage.total_tokens, tps: (.usage.completion_tokens / ($dur/1000)), total_tps: (.usage.total_tokens / ($dur/1000))}')
   echo "$STATS" > "$STATS_FILE"
-  echo "$STATS" | jq '"tok/s: \(.tps | . * 10 | round / 10)  total tokens: \(.eval_count)  model: \(.model)"'
+  echo "$STATS" | jq '"tok/s: \(.tps | . * 10 | round / 10)  overall: \(.total_tps | . * 10 | round / 10) tok/s  in: \(.input_tokens)  out: \(.output_tokens)  model: \(.model)"'
 done

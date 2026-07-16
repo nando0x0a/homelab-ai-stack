@@ -128,6 +128,7 @@ fi
 
 # ── INFERENCE STATS ───────────────────────────────────────────────────────────
 echo "${D}────────────────────────────────────────────────────────────────${R}"
+echo "${D}tok/s = generation only · overall = incl. prompt processing · in/out/total = tokens${R}"
 python3 -c "
 import json,time,os
 
@@ -136,11 +137,14 @@ def show(path, label):
     try:
         d=json.load(open(path))
         tps=d.get('tps',0)
-        tokens=d.get('eval_count',0)
+        total_tps=d.get('total_tps',0)
+        in_tok=d.get('input_tokens',0)
+        out_tok=d.get('output_tokens',0)
+        tot_tok=d.get('total_tokens',0)
         model=d.get('model','?')
         age=time.time()-os.path.getmtime(path)
         ts=time.strftime('%H:%M:%S', time.localtime(os.path.getmtime(path)))
-        print(f'\033[36m{label:<10}\033[0m \033[2mlast inference\033[0m  model:\033[1m{model[:30]}\033[0m  \033[1m{tps:.1f} tok/s\033[0m  tok:\033[1m{tokens}\033[0m  \033[2m@ {ts}\033[0m\033[K')
+        print(f'\033[36m{label:<10}\033[0m \033[2mlast inference\033[0m  model:\033[1m{model[:30]}\033[0m  \033[1m{tps:.1f} tok/s\033[0m  \033[2moverall:\033[0m\033[1m{total_tps:.1f} tok/s\033[0m  in:\033[1m{in_tok}\033[0m  out:\033[1m{out_tok}\033[0m  total:\033[1m{tot_tok}\033[0m  \033[2m@ {ts}\033[0m\033[K')
     except: pass
 
 found = os.path.exists('/tmp/ollama_last_stats.json') or os.path.exists('/tmp/lmstudio_last_stats.json')

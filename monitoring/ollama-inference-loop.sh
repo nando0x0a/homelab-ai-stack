@@ -15,7 +15,7 @@ STATS_FILE="${STATS_FILE:-/tmp/ollama_last_stats.json}"
 while true; do
   RESULT=$(curl -s "http://${HOST}:11434/api/generate" \
     -d "{\"model\":\"${MODEL}\",\"prompt\":\"${PROMPT}\",\"stream\":false}" \
-    | jq '{model:.model, eval_count:.eval_count, tps: (.eval_count/(.eval_duration/1e9))}')
+    | jq '{model:.model, input_tokens:.prompt_eval_count, output_tokens:.eval_count, total_tokens:(.prompt_eval_count+.eval_count), tps: (.eval_count/(.eval_duration/1e9)), total_tps: ((.prompt_eval_count+.eval_count)/((.prompt_eval_duration+.eval_duration)/1e9))}')
   echo "$RESULT" > "$STATS_FILE"
-  echo "$RESULT" | jq '"tok/s: \(.tps | . * 10 | round / 10)  total tokens: \(.eval_count)  model: \(.model)"'
+  echo "$RESULT" | jq '"tok/s: \(.tps | . * 10 | round / 10)  overall: \(.total_tps | . * 10 | round / 10) tok/s  in: \(.input_tokens)  out: \(.output_tokens)  model: \(.model)"'
 done
