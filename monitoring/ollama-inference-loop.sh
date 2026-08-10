@@ -1,5 +1,5 @@
 #!/bin/bash
-# Repeatedly prompts an Ollama model and records tok/s for ai-stats.sh / mac-stats.sh
+# Repeatedly prompts an Ollama model and records tok/s for local-ai-stats.sh / mac-stats.sh
 # to display in their "Last Inference" row.
 #
 # Run against a local Ollama (HOST=127.0.0.1) or a remote one over the LAN

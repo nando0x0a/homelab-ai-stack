@@ -1,13 +1,19 @@
 #!/bin/bash
 # Terminal dashboard for GPU/VRAM/inference stats on the inference server.
 # usage: ./ai-stats.sh | live: watch -n 2 ./ai-stats.sh
+# --no-usage: skip the Claude Code usage section (has real spend figures + a masked
+# personal email) — required before piping output to any non-private channel/bot.
 #
 # Reads /tmp/ollama_last_stats.json and /tmp/lmstudio_last_stats.json,
 # which the load-testing loops (ollama-inference-loop.sh / lmstudio-inference-loop.sh) write.
 #
 # Set AISERVER_HOST if Ollama's API isn't reachable at localhost (e.g. running
 # this dashboard from a different host than the one serving Ollama).
-AISERVER_HOST="${AISERVER_HOST:-localhost}"
+AISERVER_HOST="${AISERVER_HOST:-192.168.0.6}"
+SKIP_USAGE=0
+for arg in "$@"; do
+  [ "$arg" = "--no-usage" ] && SKIP_USAGE=1
+done
 
 R=$'\033[0m'; B=$'\033[1m'; D=$'\033[2m'
 CY=$'\033[36m'; GR=$'\033[32m'; YL=$'\033[33m'; RD=$'\033[31m'; WH=$'\033[97m'
@@ -79,9 +85,11 @@ if not models:
 for m in models:
     n=m.get('name','?')
     v=m.get('size_vram',0)/1024**3
-    ctx=m.get('details',{}).get('parameter_size','?')
+    psize=m.get('details',{}).get('parameter_size','?')
+    ctxlen=m.get('context_length')
+    ctxs=f'{ctxlen:,}' if ctxlen else '?'
     exp=m.get('expires_at','')[:16].replace('T',' ')
-    print(f'\033[36mOllama  \033[0m\033[1m{n}\033[0m  {ctx}  vram:{v:.1f}GB  unloads:{exp}')
+    print(f'\033[36mOllama  \033[0m\033[1m{n}\033[0m  {psize}  ctx:{ctxs}  vram:{v:.1f}GB  unloads:{exp}')
 " 2>/dev/null
 else
   echo "${CY}Ollama  ${R}${D}unreachable${R}"
@@ -148,3 +156,179 @@ while IFS=$'\t' read -r name cpu mem memusage; do
   printf "${D}%-14s${R}  cpu:%-8s mem:%-7s %s\n" "$name" "$cpu" "$mem" "$mu"
 done
 echo "${D}────────────────────────────────────────────────────────────────${R}"
+
+# ── CLAUDE CODE USAGE ═══════════════════════════════════════════════════════════
+if [ "$SKIP_USAGE" != "1" ]; then
+echo "${D}════════════════════════════════════════════════════════════════${R}"
+echo "${D}Claude Code usage (ccusage) · cost is notional API-rate pricing, not a subscription bill${R}"
+echo "${D}· Account-wide — shared across every Claude surface (CLI, desktop, Cowork) ·${R}"
+python3 -c "
+import json,os
+try:
+    d=json.load(open(os.path.expanduser('~/.claude.json')))
+    a=d.get('oauthAccount',{})
+    email=a.get('emailAddress','?')
+    if '@' in email:
+        local,domain=email.split('@',1)
+        email=f'{local[:3]}...@{domain}'
+    plan=a.get('organizationType','?')
+    print(f'\033[36mAccount \033[0m\033[1m{email}\033[0m  plan:\033[1m{plan}\033[0m')
+except Exception:
+    print('\033[36mAccount \033[0m\033[2munavailable\033[0m')
+" 2>/dev/null
+# Which Claude surface (CLI, desktop app, Cowork, ...) last touched this account —
+# clientDataCacheSlots is synced account-wide by Anthropic's servers, not scraped locally.
+python3 -c "
+import json,os,time
+try:
+    d=json.load(open(os.path.expanduser('~/.claude.json')))
+    slots=d.get('clientDataCacheSlots',{})
+    seen={}
+    for v in slots.values():
+        ep=v.get('entrypoint','?')
+        at=v.get('at',0)/1000
+        if ep not in seen or at>seen[ep]:
+            seen[ep]=at
+    if not seen:
+        print('\033[36mClients \033[0m\033[2munavailable\033[0m')
+    else:
+        now=time.time()
+        parts=[]
+        for ep,at in sorted(seen.items(), key=lambda x:-x[1]):
+            age=now-at
+            if age<3600: age_s=f'{int(age/60)}m ago'
+            elif age<86400: age_s=f'{age/3600:.1f}h ago'
+            else: age_s=f'{age/86400:.1f}d ago'
+            parts.append(f'\033[1m{ep}\033[0m {age_s}')
+        print('\033[36mClients \033[0m' + '  ·  '.join(parts))
+except Exception:
+    print('\033[36mClients \033[0m\033[2munavailable\033[0m')
+" 2>/dev/null
+
+# Real 5-hour/weekly quota from Claude Code's own rate_limits (cached by the statusLine hook,
+# populated only while a Claude Code session is actively rendering — see ~/.claude/settings.json)
+RL_DATA=$(python3 -c "
+import json,os,time
+p=os.path.expanduser('~/.claude/rate_limits_cache.json')
+try:
+    d=json.load(open(p))
+    rl=d.get('rate_limits',{})
+    age=time.time()-d.get('cached_at',0)
+    age_s=f'{int(age/60)}m ago' if age<3600 else f'{age/3600:.1f}h ago'
+    fh=rl.get('five_hour',{}); sd=rl.get('seven_day',{})
+    fh_pct=fh.get('used_percentage'); sd_pct=sd.get('used_percentage')
+    fh_pct=round(fh_pct) if fh_pct is not None else None
+    sd_pct=round(sd_pct) if sd_pct is not None else None
+    fh_ts=time.strftime('%a %H:%M', time.localtime(fh.get('resets_at'))) if fh.get('resets_at') else '?'
+    sd_ts=time.strftime('%a %H:%M', time.localtime(sd.get('resets_at'))) if sd.get('resets_at') else '?'
+    print(f'{fh_pct if fh_pct is not None else -1}|{sd_pct if sd_pct is not None else -1}|{fh_ts}|{sd_ts}|{age_s}')
+except Exception:
+    print('ERR')
+" 2>/dev/null)
+
+if [ "$RL_DATA" != "ERR" ] && [ -n "$RL_DATA" ]; then
+  IFS='|' read -r FH_PCT SD_PCT FH_TS SD_TS AGE_S <<< "$RL_DATA"
+  if [ "$FH_PCT" != "-1" ]; then
+    echo -n "${B}${CY}5h Limit${R} "; bar $FH_PCT 100 14; echo " $(cv $FH_PCT 60 85 "")%  resets ${FH_TS}"
+  else
+    echo "${CY}5h Limit${R} ${D}unavailable${R}"
+  fi
+  if [ "$SD_PCT" != "-1" ]; then
+    echo -n "${B}${CY}Wk Limit${R} "; bar $SD_PCT 100 14; echo " $(cv $SD_PCT 60 85 "")%  resets ${SD_TS}"
+  else
+    echo "${CY}Wk Limit${R} ${D}unavailable${R}"
+  fi
+  echo "${D}(rate limits as of ${AGE_S})${R}"
+else
+  echo "${CY}Limits  ${R}${D}no cached rate-limit data yet — open a Claude Code session to populate${R}"
+fi
+
+echo "${D}· Local to aiserver's CLI only — excludes desktop/Cowork usage ·${R}"
+echo "${D}Block   = current 5-hour billing window: tokens/cost/burn rate on this CLI, resets on the timer shown${R}"
+CCUSAGE_BLOCK=$(ccusage blocks --active --json 2>/dev/null)
+CCUSAGE_DAILY=$(ccusage daily --json --since "$(date +%Y%m%d)" 2>/dev/null)
+
+if [ -n "$CCUSAGE_BLOCK" ]; then
+  echo "$CCUSAGE_BLOCK" | python3 -c "
+import sys,json
+try:
+    blocks=json.load(sys.stdin).get('blocks',[])
+    if not blocks:
+        print('\033[36mBlock   \033[0m\033[2mno active session\033[0m')
+    else:
+        b=blocks[0]
+        models=','.join(m.replace('claude-','') for m in b.get('models',[]))
+        cost=b.get('costUSD',0)
+        tok=b.get('totalTokens',0)
+        burn=b.get('burnRate',{}).get('costPerHour',0) or 0
+        rem=b.get('projection',{}).get('remainingMinutes',0) or 0
+        h,m=divmod(int(rem),60)
+        print(f'\033[36mBlock   \033[0m\033[1m{models}\033[0m  tokens:\033[1m{tok:,}\033[0m  cost:\033[1m\${cost:.2f}\033[0m  burn:\033[1m\${burn:.2f}/hr\033[0m  resets in \033[1m{h}h{m:02d}m\033[0m')
+except Exception:
+    print('\033[36mBlock   \033[0m\033[2munavailable\033[0m')
+" 2>/dev/null
+else
+  echo "${CY}Block   ${R}${D}unavailable${R}"
+fi
+
+echo "${D}Today   = total tokens/cost on this CLI since midnight, across all of today's sessions${R}"
+if [ -n "$CCUSAGE_DAILY" ]; then
+  echo "$CCUSAGE_DAILY" | python3 -c "
+import sys,json
+try:
+    t=json.load(sys.stdin).get('totals',{})
+    tok=t.get('totalTokens',0)
+    cost=t.get('totalCost',0)
+    print(f'\033[36mToday   \033[0m tokens:\033[1m{tok:,}\033[0m  cost:\033[1m\${cost:.2f}\033[0m')
+except Exception:
+    print('\033[36mToday   \033[0m\033[2munavailable\033[0m')
+" 2>/dev/null
+else
+  echo "${CY}Today   ${R}${D}unavailable${R}"
+fi
+
+echo "${D}Context = this specific conversation's context-window usage, resets on /clear or a new session${R}"
+python3 -c "
+import os,glob,json
+
+WINDOWS={
+    'claude-sonnet-5':1_000_000,'claude-opus-5':1_000_000,'claude-fable-5':1_000_000,
+    'claude-sonnet-4-6':1_000_000,'claude-haiku-4-5-20251001':200_000,
+}
+
+def latest_session():
+    paths=glob.glob(os.path.expanduser('~/.claude/projects/*/*.jsonl'))
+    return max(paths,key=os.path.getmtime) if paths else None
+
+def last_usage(path):
+    with open(path,'rb') as f:
+        f.seek(0,os.SEEK_END)
+        size=f.tell()
+        f.seek(max(0,size-200000))
+        data=f.read().decode('utf-8',errors='ignore')
+    for line in reversed(data.split(chr(10))):
+        if not line.strip(): continue
+        try:
+            obj=json.loads(line)
+        except Exception:
+            continue
+        usage=obj.get('message',{}).get('usage')
+        if usage:
+            return obj['message'].get('model','?'), usage.get('input_tokens',0)+usage.get('cache_creation_input_tokens',0)+usage.get('cache_read_input_tokens',0)
+    return None
+
+try:
+    p=latest_session()
+    r=last_usage(p) if p else None
+    if not r:
+        print('\033[36mContext \033[0m\033[2mno active session\033[0m')
+    else:
+        model,ctx=r
+        window=WINDOWS.get(model,1_000_000)
+        pct=ctx/window*100
+        print(f'\033[36mContext \033[0m\033[1m{model}\033[0m  {ctx:,}/{window:,} tokens (\033[1m{pct:.0f}%\033[0m used, \033[1m{100-pct:.0f}%\033[0m left)')
+except Exception:
+    print('\033[36mContext \033[0m\033[2munavailable\033[0m')
+" 2>/dev/null
+echo "${D}════════════════════════════════════════════════════════════════${R}"
+fi

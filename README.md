@@ -71,14 +71,15 @@ The interesting part: rather than only reading `nvidia-smi` output, this stack p
 
 | Script | What it does |
 |---|---|
-| [`monitoring/ai-stats.sh`](monitoring/ai-stats.sh) | Single-screen terminal dashboard on the server: GPU util/VRAM/temp/power bars, per-process VRAM breakdown, last-inference tok/s per engine, CPU/RAM, Docker container stats |
+| [`monitoring/local-ai-stats.sh`](monitoring/local-ai-stats.sh) | Single-screen terminal dashboard on the server: GPU util/VRAM/temp/power bars, per-process VRAM breakdown, last-inference tok/s per engine, CPU/RAM, Docker container stats — split 2026-08-10 from `ai-stats.sh` (archived as `ai-stats.sh.retired-20260810`) to match the [local-ai-stats](../../local-ai-stats/) web app |
+| [`monitoring/cloud-ai-stats.sh`](monitoring/cloud-ai-stats.sh) | Claude usage (`ccusage`: account, live rate limits, active billing block, context window) + Gemini usage (via the [cloud-ai-stats](../../cloud-ai-stats/) web app's own API) — the other half of the `ai-stats.sh` split |
 | [`monitoring/mac-stats.sh`](monitoring/mac-stats.sh) | Equivalent dashboard for the Mac client, using `powermetrics` for GPU/CPU/RAM instead of `nvidia-smi` |
 | [`monitoring/ollama-inference-loop.sh`](monitoring/ollama-inference-loop.sh) | Repeatedly prompts the local Ollama model, computes tok/s from the API's own timing fields, writes the result for the dashboard to pick up |
 | [`monitoring/lmstudio-inference-loop.sh`](monitoring/lmstudio-inference-loop.sh) | Same idea against the LM Studio OpenAI-compatible API |
 | [`monitoring/lms-benchmark-loop.py`](monitoring/lms-benchmark-loop.py) | Python variant: drives `lms chat` directly in a loop against whatever model is currently loaded, parses `--stats` output, shows a live spinner |
 | [`monitoring/lms-stats-stream.sh`](monitoring/lms-stats-stream.sh) | Alternative to the loop above — taps LM Studio's own `lms log stream --stats` event feed instead of polling |
 
-Run a dashboard (`ai-stats.sh` or `mac-stats.sh`) in one terminal and an inference loop in another; the dashboard's "Last Inference" row updates every cycle. See [`docs/inference-runbook.md`](docs/inference-runbook.md) for the full command reference (model management, VRAM budgeting across concurrent workloads, Grafana dashboard notes).
+Run a dashboard (`local-ai-stats.sh` or `mac-stats.sh`) in one terminal and an inference loop in another; the dashboard's "Last Inference" row updates every cycle. See [`docs/inference-runbook.md`](docs/inference-runbook.md) for the full command reference (model management, VRAM budgeting across concurrent workloads, Grafana dashboard notes).
 
 ## Docs
 

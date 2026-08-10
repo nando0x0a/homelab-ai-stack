@@ -1,6 +1,6 @@
 #!/bin/bash
 # Repeatedly prompts LM Studio's OpenAI-compatible API and records tok/s for
-# ai-stats.sh / mac-stats.sh to display in their "Last Inference" row.
+# local-ai-stats.sh / mac-stats.sh to display in their "Last Inference" row.
 #
 # The API doesn't return timing fields directly (unlike Ollama), so this
 # times the request wall-clock and derives tok/s from the reported completion

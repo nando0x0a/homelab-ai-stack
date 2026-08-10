@@ -118,16 +118,18 @@ See [`docs/setup-runbook.md`](setup-runbook.md#vram-budget--concurrent-workloads
 
 ## 5. Monitoring & Load-Testing
 
-### 5.1 ai-stats — compact terminal dashboard
+### 5.1 local-ai-stats / cloud-ai-stats — compact terminal dashboards
 
-[`monitoring/ai-stats.sh`](../monitoring/ai-stats.sh) gives a single-screen view: GPU util + VRAM bars, VRAM processes with owner and % usage, last-inference stats per engine, loaded models, CPU/RAM bars, Docker container stats.
+[`monitoring/local-ai-stats.sh`](../monitoring/local-ai-stats.sh) gives a single-screen view: GPU util + VRAM bars, VRAM processes with owner and % usage, last-inference stats per engine, loaded models, CPU/RAM bars, Docker container stats. [`monitoring/cloud-ai-stats.sh`](../monitoring/cloud-ai-stats.sh) covers Claude (`ccusage`: account, live rate limits, active billing block, context window) and Gemini usage/cost — split 2026-08-10 from the retired `ai-stats.sh` to match the local-ai-stats/cloud-ai-stats web apps.
 
 ```bash
 # one-shot snapshot
-./ai-stats.sh
+./local-ai-stats.sh
+./cloud-ai-stats.sh
 
-# live (2s refresh)
-watch -n 2 ./ai-stats.sh
+# live (local: 2s refresh; cloud: 15s, matches its own scan interval)
+watch -n 2 ./local-ai-stats.sh
+watch -n 15 ./cloud-ai-stats.sh
 ```
 
 The "Last Inference" row is populated by the load-testing loops below writing to `/tmp/ollama_last_stats.json` and `/tmp/lmstudio_last_stats.json` — run a dashboard in one terminal and a loop in another.

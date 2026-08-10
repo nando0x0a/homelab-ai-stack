@@ -1,7 +1,7 @@
 #!/bin/bash
 # Taps LM Studio's own event stream instead of polling — writes each
 # completed prediction's stats to /tmp/mac_lmstudio_last_stats.json.
-# Run in a background terminal alongside mac-stats.sh / ai-stats.sh.
+# Run in a background terminal alongside mac-stats.sh / local-ai-stats.sh.
 
 export PATH="$PATH:$HOME/.lmstudio/bin"
 
