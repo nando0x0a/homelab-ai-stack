@@ -225,6 +225,25 @@ echo "${D}Gemini usage (Hermes) · cost is a self-computed estimate from publish
 echo "${D}· \$10 Google Developer Program credit · Today/Week/Month across all 7 Hermes profiles ·${R}"
 GEMINI_JSON=$(curl -sf --max-time 3 "${CLOUD_AI_STATS_URL}/api/gemini" 2>/dev/null)
 if [ -n "$GEMINI_JSON" ]; then
+  CREDIT_DATA=$(echo "$GEMINI_JSON" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    total=d.get('credit_total_usd',10.0)
+    spent=d['totals']['all_time']['cost']
+    pct=min(spent/total*100,100) if total else 0
+    print(f'{pct:.1f}|{spent:.2f}|{total:.2f}')
+except Exception:
+    print('ERR')
+" 2>/dev/null)
+  if [ "$CREDIT_DATA" != "ERR" ] && [ -n "$CREDIT_DATA" ]; then
+    IFS='|' read -r CR_PCT CR_SPENT CR_TOTAL <<< "$CREDIT_DATA"
+    CR_PCT_INT=${CR_PCT%.*}
+    echo -n "${B}${CY}Credit  ${R} "; bar $CR_PCT_INT 100 14; echo " $(cv $CR_PCT_INT 60 85 "")%  \$${CR_SPENT} / \$${CR_TOTAL} used (all-time)"
+  else
+    echo "${CY}Credit  ${R}${D}unavailable${R}"
+  fi
+
   echo "$GEMINI_JSON" | python3 -c "
 import sys,json
 try:
